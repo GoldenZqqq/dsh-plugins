@@ -1,0 +1,12 @@
+# awesome-dsh-plugin 上架条目(提交到 awesome-dsh-plugin 仓库用)
+
+# 提交方式:在 awesome-dsh-plugin 仓库里新建文件
+#   data/plugins/GoldenZqqq__dsh-model-collapse.yml
+# 内容如下(description.en 必填,zh 可选):
+
+url: https://github.com/GoldenZqqq/dsh-model-collapse
+name: GoldenZqqq/dsh-model-collapse
+category: ui
+description:
+  en: Collapses the model picker by provider, with a pinned quick bar for expand-all, collapse-all, focus-current, filter and reset.
+  zh: 模型选择菜单按 provider 折叠,顶部常驻快捷条支持一键全部展开/收起、聚焦当前模型、筛选与重置记忆。

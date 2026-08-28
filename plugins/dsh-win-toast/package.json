@@ -1,0 +1,8 @@
+{
+  "name": "dsh-win-toast",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.js",
+  "description": "DSH 插件:turn 完成/失败/受阻时弹 Windows 系统级 Toast 通知,点击打开 DSH Web。"
+}

@@ -1,0 +1,18 @@
+# dsh-model-collapse bundle patch.
+# Applied by `dsh plugin add` / the dsh-market installer.
+# Config keys (all optional):
+#   enabled:             boolean  master switch (default true)
+#   expandSelectedGroup: boolean  expand the group of the currently selected
+#                                 model on first run (default true)
+#   quickBar:            boolean  pinned quick bar at the top of the menu
+#                                 (default true)
+#   accordion:           boolean  expanding one group collapses the others
+#                                 (default false)
+- insert:
+    - id: model-collapse
+      name: dsh-model-collapse
+      config:
+        enabled: true
+        expandSelectedGroup: true
+        quickBar: true
+        accordion: false

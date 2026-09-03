@@ -1,0 +1,9 @@
+# dsh-workspace-collapse bundle patch.
+# Applied by `dsh plugin add` / the dsh-market installer.
+# Config keys (all optional):
+#   enabled: boolean  master switch (default true)
+- insert:
+    - id: workspace-collapse
+      name: dsh-workspace-collapse
+      config:
+        enabled: true

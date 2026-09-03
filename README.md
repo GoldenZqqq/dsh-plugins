@@ -9,6 +9,7 @@ GoldenZqqq 的 DeepSeek Harness (DSH) 自制插件集合。每个插件是 `plug
 | 插件 | 半体 | 作用 |
 | --- | --- | --- |
 | [dsh-model-collapse](plugins/dsh-model-collapse/README.md) | web 客户端 UI | 模型选择菜单按 provider 默认折叠，常驻快捷条（展开/收起/聚焦/筛选），localStorage 记忆展开状态 |
+| [dsh-workspace-collapse](plugins/dsh-workspace-collapse/README.md) | web 客户端 UI | 左侧工作区列表一键切换折叠/展开全部目录，不再逐个点击 |
 | [dsh-win-toast](plugins/dsh-win-toast/README.md) | 宿主端 | turn 完成/失败/受阻时弹 Windows 系统级通知（Toast），上游断流导致对话中断不再错过 |
 
 ## 安装

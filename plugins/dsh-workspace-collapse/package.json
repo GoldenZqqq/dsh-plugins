@@ -1,6 +1,6 @@
 {
   "name": "dsh-workspace-collapse",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DSH web plugin: one button toggles collapse/expand of all workspace groups in the left sidebar.",
   "license": "MIT",
   "type": "commonjs",

@@ -9,6 +9,7 @@ DSH web 插件：在左侧边栏「工作区 / Workspaces」区头加一枚切�
 - 当前全部工作区都已折叠时，点一下 → **全部展开**。
 - 按钮图标和悬浮提示会随当前状态变化：全部收起时显示“展开全部”，有展开时显示“折叠全部”。
 - 操作走 DSH 自己的行点击，展开状态仍由 DSH 持久化；刷新后和手动点击行为完全一致。
+- **批量一次提交**：把全部目标行的点击放进 `ReactDOM.unstable_batchedUpdates()`，React 合成一次重渲染，视觉上所有目录同时展开/收起，不会一个个闪动。
 - 切到“单列表 / 搜索”等没有分组的视图时按钮自动消失，切回分组视图自动回来。
 
 ## 原理
@@ -16,7 +17,7 @@ DSH web 插件：在左侧边栏「工作区 / Workspaces」区头加一枚切�
 纯浏览器端 DOM 增强，不 fork、不修改任何 DSH 官方包：
 
 - 目标 UI 是 `@deepseek-ai/dsh-client-ui-workspace` 渲染的左侧工作区树。工作区分组行有稳定的 ARIA 语义：`div[role="treeitem"][aria-expanded]`，本插件只依赖这一语义，不碰 CSS-modules 哈希类名。
-- 只往区头 actions 容器里新增一个按钮 + 注入一条 `<style>`；折叠/展开通过对 DSH 自己的行派发真实 click 完成，不读内部 store、不碰 React fiber。
+- 只往区头 actions 容器里新增一个按钮 + 注入一条 `<style>`；折叠/展开通过对 DSH 自己的行派发真实 click 完成，并用 `ReactDOM.unstable_batchedUpdates()` 把这批 click 合成一次 React 提交，不读内部 store、不碰 React fiber。
 - 一个 `MutationObserver` 监听新增节点和 `aria-expanded` 变化，树重建后自动补按钮、刷新图标。
 
 ## 文件

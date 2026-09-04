@@ -19,7 +19,7 @@
 
 window.__ModuleLoader__.load({
 	id: 'dsh-workspace-collapse',
-	factory: () => {
+	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
 
@@ -141,13 +141,6 @@ window.__ModuleLoader__.load({
 			return null;
 		}
 
-		function nextFrame() {
-			if (typeof requestAnimationFrame === 'function') {
-				return new Promise((resolve) => requestAnimationFrame(() => resolve()));
-			}
-			return new Promise((resolve) => setTimeout(resolve, 16));
-		}
-
 		/* ---------- 按钮 ---------- */
 
 		function makeButton() {
@@ -213,25 +206,43 @@ window.__ModuleLoader__.load({
 			button.title = expanding ? texts.expandTip : texts.collapseTip;
 		}
 
-		async function toggleAll() {
+		function toggleAll() {
 			const rows = workspaceRows();
 			if (rows.length === 0) return;
+			/* 展开全部 = 点击所有当前收起行;收起全部 = 点击所有当前展开行。 */
 			const expanding = !anyWorkspaceExpanded();
 
-			/* React 会逐个重渲染;每轮重新查 DOM,避免点中已被卸载的旧节点。 */
-			for (let guard = 0; guard < 500; guard += 1) {
-				const current = workspaceRows();
-				const row = current.find((candidate) => {
-					const isExpanded = candidate.getAttribute('aria-expanded') === 'true';
-					return expanding ? !isExpanded : isExpanded;
-				});
-				if (row === undefined) break;
-				row.click();
-				/* React 状态提交/重渲染通常跨一帧,等两帧更稳。 */
-				await nextFrame();
-				await nextFrame();
+			/* 关键:把这一批 click 放进 ReactDOM.unstable_batchedUpdates(),
+			   让 React 把全部展开/收起合成一次提交,视觉上一次性完成,
+			   而不是每点一行就重渲染一次。 */
+			const applyClicks = () => {
+				for (const row of rows) {
+					const isExpanded = row.getAttribute('aria-expanded') === 'true';
+					if (expanding ? !isExpanded : isExpanded) row.click();
+				}
+			};
+
+			let ReactDOM = null;
+			try {
+				ReactDOM = typeof require === 'function' ? require('react-dom') : null;
+			} catch {
+				/* 极少数情况下拿不到 react-dom,退回逐行点击(功能仍可用)。 */
 			}
-			updateButtonVisual();
+			if (ReactDOM && typeof ReactDOM.unstable_batchedUpdates === 'function') {
+				ReactDOM.unstable_batchedUpdates(applyClicks);
+			} else {
+				applyClicks();
+			}
+
+			/* ReactDOM.batchedUpdates 会在回调结束时同步 flush,直接刷新按钮即可;
+			维护一个 rAF 兜底路径。 */
+			if (ReactDOM && typeof ReactDOM.unstable_batchedUpdates === 'function') {
+				updateButtonVisual();
+			} else if (typeof requestAnimationFrame === 'function') {
+				requestAnimationFrame(() => requestAnimationFrame(() => updateButtonVisual()));
+			} else {
+				setTimeout(updateButtonVisual, 0);
+			}
 		}
 
 		/* ---------- 插件面 ---------- */

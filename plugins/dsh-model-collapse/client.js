@@ -54,16 +54,18 @@ window.__ModuleLoader__.load({
 			'[role="menu"] [role="group"] > [data-dshmc]::after { content: "(" attr(data-dshmc-count) ")"; margin-left: 6px; font-size: 11px; font-weight: 400; opacity: 0.45; }',
 			'/* 收起的分组:隐藏其模型行(display:none 同时把它们移出 Tab 焦点序) */',
 			'[role="menu"] [role="group"][data-dshmc-collapsed] > button { display: none !important; }',
-			'/* ===== 顶部快捷条:菜单是 flex 列,快捷条是 .groups 滚动区的兄弟节点,天然钉在顶部,无需 sticky ===== */',
-			'[role="menu"] > [data-dshmc-quickbar] { display: flex; align-items: center; gap: 4px; padding: 5px 6px 6px; border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.06)); background: var(--dsw-specific-menu, #353638); box-shadow: 0 6px 10px -10px rgba(0,0,0,.5); }',
-			'[role="menu"] > [data-dshmc-quickbar] button { flex: 0 0 auto; display: inline-flex; align-items: center; height: 28px; font: inherit; font-size: 12px; font-weight: 500; line-height: 1; padding: 0 9px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary, #cfd3d6); cursor: pointer; transition: background .12s ease, color .12s ease; }',
-			'[role="menu"] > [data-dshmc-quickbar] button:hover, [role="menu"] > [data-dshmc-quickbar] button:focus-visible { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; }',
-			'[role="menu"] > [data-dshmc-quickbar] input { flex: 1 1 auto; min-width: 0; height: 28px; box-sizing: border-box; font: inherit; font-size: 12px; line-height: 1; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12)); border-radius: 6px; background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; transition: border-color .12s ease, background .12s ease; }',
-			'[role="menu"] > [data-dshmc-quickbar] input::placeholder { color: var(--dsw-alias-label-tertiary, #adb2b8); }',
-			'[role="menu"] > [data-dshmc-quickbar] input:focus { border-color: var(--dsw-alias-border-l3, rgba(255,255,255,.16)); background: var(--dsw-alias-interactive-bg-active, rgba(255,255,255,.14)); }',
+			'/* ===== 顶部快捷条:菜单 flex 列的直子节,在列表滚动区之外,永不遮挡任何模型行 ===== */',
+			'[data-dshmc-quickbar] { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; width: 100%; box-sizing: border-box; padding: 5px 6px 6px; border: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.08)); border-bottom-color: var(--dsw-alias-border-l2, rgba(255,255,255,.12)); border-radius: 8px 8px 0 0; background: var(--dsw-specific-menu, #353638); }',
+			'[data-dshmc-quickbar] button { flex: 0 0 auto; display: inline-flex; align-items: center; height: 28px; font: inherit; font-size: 12px; font-weight: 500; line-height: 1; padding: 0 9px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary, #cfd3d6); cursor: pointer; transition: background .12s ease, color .12s ease; }',
+			'[data-dshmc-quickbar] button:hover, [data-dshmc-quickbar] button:focus-visible { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; }',
+			'[data-dshmc-quickbar] input { flex: 1 1 auto; min-width: 0; height: 28px; box-sizing: border-box; font: inherit; font-size: 12px; line-height: 1; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12)); border-radius: 6px; background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; transition: border-color .12s ease, background .12s ease; }',
+			'[data-dshmc-quickbar] input::placeholder { color: var(--dsw-alias-label-tertiary, #adb2b8); }',
+			'[data-dshmc-quickbar] input:focus { border-color: var(--dsw-alias-border-l3, rgba(255,255,255,.16)); background: var(--dsw-alias-interactive-bg-active, rgba(255,255,255,.14)); }',
 			'/* ===== 筛选模式:未命中的行/分组隐藏,命中分组强制展开 ===== */',
 			'[role="menu"] [role="group"][data-dshmc-hidden] { display: none !important; }',
 			'[role="menu"][data-dshmc-filtering] [role="group"] > button:not([data-dshmc-hit]) { display: none !important; }',
+			'/* 快捷条 sticky 钉顶后,列表滚动/焦点导航要把行滚到快捷条下方才可见(scroll-padding-top 覆盖所有 scrollIntoView/focus 触发)。 */',
+			'*:has(> [data-dshmc-quickbar]) { scroll-padding-top: 42px; }',
 		].join('\n');
 
 		function injectStyle() {
@@ -120,12 +122,25 @@ window.__ModuleLoader__.load({
 		/* ---------- 基础折叠动作 ---------- */
 
 		const decorated = new WeakSet();
+		/** 用户手动切换过分组开关的分组;延迟的初始折叠要跳过它们。 */
+		const userDriven = new WeakSet();
 		/** apply() 时记下的配置,供动作函数(可能晚于 apply 触发)读取。 */
 		let currentOpts = { expandSelectedGroup: true, quickBar: true, accordion: false };
 
 		function setCollapsed(section, collapsed) {
-			if (collapsed) section.setAttribute('data-dshmc-collapsed', '');
-			else section.removeAttribute('data-dshmc-collapsed');
+			if (collapsed) {
+				section.setAttribute('data-dshmc-collapsed', '');
+				/* 保护焦点:0.1.7 菜单的行一旦被 display:none 隐藏,浏览器会对
+				   当前焦点行触发 blur,组件 onBlur 视作"点击外部"而关闭菜单
+				   (表现就是"打开即秒关")。折叠前先把焦点挪到同组标题,让
+				   relatedTarget 留在菜单内,避免把菜单带崩。 */
+				if (section.contains(document.activeElement)) {
+					const title = section.querySelector(':scope > [data-dshmc]');
+					if (title !== null && title !== document.activeElement) title.focus({ preventScroll: true });
+				}
+			} else {
+				section.removeAttribute('data-dshmc-collapsed');
+			}
 		}
 
 		/** 一个分组是否归本插件管(有分组标题)。 */
@@ -188,6 +203,64 @@ window.__ModuleLoader__.load({
 			return true; /* 其余一律默认收起。 */
 		}
 
+		/** 初始折叠按组暂存,等菜单定位稳定后再施加(见 flushPendingCollapse)。 */
+		let pendingCollapse = [];
+		let pendingScheduled = false;
+
+		/**
+		 * 把暂存的初始折叠一次性施加。
+		 *
+		 * 0.1.7 的模型菜单在 createPortal 里渲染,commit 后还要用 useLayoutEffect
+		 * 测量定位;React 的 commit/measure 交错期里给分组挂 data-dshmc-collapsed
+		 * (配合 display:none 规则)会把行瞬间清空,导致菜单"打开即秒关"。这里在
+		 * 双重 requestAnimationFrame 之后施加:此时菜单已完成定位、布局稳定。若菜单
+		 * 仍被压塌(高度坍缩到 0),则撤销折叠、保持全展开,保证菜单永远可用。
+		 */
+		function flushPendingCollapse() {
+			window.__dshmc_flushLog = window.__dshmc_flushLog || [];
+			if (pendingCollapse.length === 0) return;
+			const entries = pendingCollapse;
+			pendingCollapse = [];
+			let applied = false;
+			const rect0 = document.querySelector('[role="menu"]');
+			const rb0 = rect0 ? rect0.getBoundingClientRect() : null;
+			for (const entry of entries) {
+				const section = entry.section;
+				if (!section.isConnected || userDriven.has(section)) continue;
+				setCollapsed(section, entry.collapsed);
+				applied = true;
+			}
+			const rb1 = rect0 ? rect0.getBoundingClientRect() : null;
+			window.__dshmc_flushLog.push({ n: entries.length, applied, menuRectBefore: rb0 ? { w: Math.round(rb0.width), h: Math.round(rb0.height) } : null, menuRectAfter: rb1 ? { w: Math.round(rb1.width), h: Math.round(rb1.height) } : null, at: Date.now() });
+			if (!applied) return;
+			const menu = document.querySelector('[role="menu"]');
+			if (menu !== null && menu.querySelector('[data-dshmc]') !== null) {
+				const rect = menu.getBoundingClientRect();
+				if (rect.height < 16 || rect.width < 16) {
+					/* 折叠把菜单面板压塌了:恢复全展开,保菜单可用。 */
+					for (const section of allSections()) setCollapsed(section, false);
+				}
+			}
+		}
+
+		function scheduleFlush() {
+			if (pendingScheduled) return;
+			pendingScheduled = true;
+			/* 双重 rAF:让 React 的 commit → useLayoutEffect 定位全部落定后再改 DOM。
+			   部分环境(隐藏页/后台)rAF 可能被压,setTimeout 兜底。 */
+			const flush = () => {
+				pendingScheduled = false;
+				flushPendingCollapse();
+			};
+			let to = setTimeout(flush, 120);
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					clearTimeout(to);
+					flush();
+				});
+			});
+		}
+
 		function decorate(section, opts) {
 			const title = section.querySelector(':scope > [id]');
 			if (title === null) return;
@@ -203,8 +276,10 @@ window.__ModuleLoader__.load({
 			if (decorated.has(section)) return;
 			decorated.add(section);
 
-			/* 初始状态只在节点首次出现时决定一次,之后完全由用户点击驱动。 */
-			setCollapsed(section, initialCollapse(section, opts));
+			/* 初始状态只在节点首次出现时决定一次;折叠属性推迟到菜单定位稳定后施加,
+			   避免在 React commit/measure 交错期挂 display:none 把菜单带崩。 */
+			pendingCollapse.push({ section, collapsed: initialCollapse(section, opts) });
+			scheduleFlush();
 		}
 
 		/* ---------- 顶部快捷条 ---------- */
@@ -242,15 +317,20 @@ window.__ModuleLoader__.load({
 		}
 
 		function installQuickbar(menu) {
-			if (menu.querySelector(':scope > [data-dshmc-quickbar]') !== null) return;
-			/* 只给"按 provider 分组"的菜单(即模型选择菜单)装快捷条。 */
-			if (menu.querySelector('[role="group"]') === null) return;
+			/* 快捷条做「模型滚动容器(.groups)」的兄弟,由菜单 flex 列直接排布、钉在列表
+			   上方:模型行在独立滚动区里,永远不被快捷条遮挡;列表滚动(容器自身 scroll)
+			   时快捷条不动。若分组直接挂在菜单下,则快捷条就是菜单的第一个 flex 子项。 */
+			const firstGroup = menu.querySelector('[role="group"]');
+			if (!(firstGroup instanceof Element)) return;
+			const groupsWrap = firstGroup.parentElement;    /* 滚动容器 */
+			if (!(groupsWrap instanceof Element)) return;
+			const parent = groupsWrap.parentElement;        /* 菜单自身,flex 列 */
+			if (!(parent instanceof Element)) return;
+			if (parent.querySelector(':scope > [data-dshmc-quickbar]') !== null) return;
+
 			const bar = buildQuickbar(menu);
-			try {
-				menu.prepend(bar);
-			} catch {
-				/* React 竞态导致 prepend 失败:下轮 rescan 重试。 */
-			}
+			parent.insertBefore(bar, groupsWrap);
+			/* 菜单整体卸载时快捷条随容器消失,无需额外回收。 */
 		}
 
 		/* ---------- 筛选 ---------- */
@@ -322,7 +402,7 @@ window.__ModuleLoader__.load({
 		}
 
 		function focusFilter() {
-			const input = document.querySelector('[role="menu"] [data-dshmc-filter-input]');
+			const input = document.querySelector('[data-dshmc-filter-input]');
 			if (input === null) return;
 			input.focus();
 			if (typeof input.select === 'function') input.select();
@@ -343,6 +423,7 @@ window.__ModuleLoader__.load({
 			if (title === null) return false;
 			const section = title.parentElement;
 			if (section === null || section.getAttribute('role') !== 'group') return false;
+			userDriven.add(section);
 			const expanding = section.hasAttribute('data-dshmc-collapsed');
 			setCollapsed(section, !expanding);
 			/* 手风琴模式:展开某一组时自动收起其他组(可配置)。 */
@@ -359,6 +440,32 @@ window.__ModuleLoader__.load({
 		}
 
 		function installListeners() {
+			/* 0.1.7 新菜单有两道“点快捷条就关菜单”的闸:
+			   1) mousedown 冒泡到 document 的 closeOutside(菜单在 portal 里挂在 body,
+			      root/menu 都不含快捷条 → setOpen(false));
+			   2) 焦点逃逸到 body 里的快捷条 → React onBlur close()。
+			   都在 document 捕获阶段拦截:目标落在快捷条内就 stopPropagation,
+			   两层委托点都收不到,菜单保持打开,mousedown 的默认聚焦仍生效。 */
+			document.addEventListener(
+				'mousedown',
+				(event) => {
+					if (!(event.target instanceof Element)) return;
+					if (event.target.closest('[data-dshmc-quickbar]') !== null) event.stopPropagation();
+				},
+				true,
+			);
+
+			document.addEventListener(
+				'focusout',
+				(event) => {
+					const next = event.relatedTarget;
+					if (!(next instanceof Element)) return;
+					if (next.closest('[data-dshmc-quickbar]') === null) return;
+					event.stopPropagation();
+				},
+				true,
+			);
+
 			document.addEventListener(
 				'click',
 				(event) => {

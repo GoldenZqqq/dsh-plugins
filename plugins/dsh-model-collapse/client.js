@@ -122,8 +122,13 @@ window.__ModuleLoader__.load({
 		/* ---------- 基础折叠动作 ---------- */
 
 		const decorated = new WeakSet();
-		/** 用户手动切换过分组开关的分组;延迟的初始折叠要跳过它们。 */
-		const userDriven = new WeakSet();
+		/** 当前菜单会话里已决定过初始折叠的分组标题 id;React 重建出同名分组的新 DOM
+		    后不再重复决定初始状态(否则用户刚展开的分组会被悄悄收回)。 */
+		const seededTitles = new Set();
+		/** 用户手动切换过分组开关的分组标题 id;延迟的初始折叠要跳过它们。 */
+		const userDriven = new Set();
+		/** 当前受管菜单;它的卸载意味着一次菜单会话结束,seededTitles 整体失效。 */
+		let liveMenu = null;
 		/** apply() 时记下的配置,供动作函数(可能晚于 apply 触发)读取。 */
 		let currentOpts = { expandSelectedGroup: true, quickBar: true, accordion: false };
 
@@ -226,7 +231,7 @@ window.__ModuleLoader__.load({
 			const rb0 = rect0 ? rect0.getBoundingClientRect() : null;
 			for (const entry of entries) {
 				const section = entry.section;
-				if (!section.isConnected || userDriven.has(section)) continue;
+				if (!section.isConnected || userDriven.has(entry.titleId)) continue;
 				setCollapsed(section, entry.collapsed);
 				applied = true;
 			}
@@ -273,13 +278,18 @@ window.__ModuleLoader__.load({
 				title.setAttribute('data-dshmc-count', countStr);
 			}
 
+				/* 初始折叠(seededTitles)只按分组标题 id 决定一次:挂 data-dshmc-collapsed 会
+			   改变菜单尺寸,DSH 在 createPortal 里按新尺寸重渲染、整段替换分组 DOM;若对
+			   替换出的新 DOM 再按记忆重新折叠,用户刚手动展开的分组会被悄悄收回
+			   (表现为"点分组没反应")。 */
+			if (!seededTitles.has(title.id)) {
+				seededTitles.add(title.id);
+				pendingCollapse.push({ section, titleId: title.id, collapsed: initialCollapse(section, opts) });
+				scheduleFlush();
+			}
+
 			if (decorated.has(section)) return;
 			decorated.add(section);
-
-			/* 初始状态只在节点首次出现时决定一次;折叠属性推迟到菜单定位稳定后施加,
-			   避免在 React commit/measure 交错期挂 display:none 把菜单带崩。 */
-			pendingCollapse.push({ section, collapsed: initialCollapse(section, opts) });
-			scheduleFlush();
 		}
 
 		/* ---------- 顶部快捷条 ---------- */
@@ -423,7 +433,7 @@ window.__ModuleLoader__.load({
 			if (title === null) return false;
 			const section = title.parentElement;
 			if (section === null || section.getAttribute('role') !== 'group') return false;
-			userDriven.add(section);
+			userDriven.add(title.id);
 			const expanding = section.hasAttribute('data-dshmc-collapsed');
 			setCollapsed(section, !expanding);
 			/* 手风琴模式:展开某一组时自动收起其他组(可配置)。 */
@@ -574,7 +584,19 @@ window.__ModuleLoader__.load({
 		const inject = []; // 纯 DOM 增强,不依赖任何客户端服务。
 
 		function rescan(opts) {
+			/* 菜单会话结束:上次观测的菜单已被卸载(用户关掉了菜单)之后,再出现的
+			   菜单节点是新一轮会话,分组全为新 DOM;seededTitles/userDriven 都是会话级
+			   判定,应清空,让新分组重新按记忆决定初始折叠(否则新会话的分组不再
+			   触发初始折叠,会全部停在 React 的"展开"默认态)。 */
+			if (liveMenu !== null && liveMenu.isConnected === false) {
+				liveMenu = null;
+				seededTitles.clear();
+				userDriven.clear();
+			}
 			for (const menu of document.querySelectorAll('[role="menu"]')) {
+				/* 记录当前受管的菜单节点(React 重渲染会复用同一节点,只有整体卸载
+				   再出现才会换实例,从而触发上面的会话重置)。 */
+				if (liveMenu === null) liveMenu = menu;
 				/* 菜单被 React 整体重建后,旧快捷条随菜单消失;这里补装。 */
 				installQuickbar(menu);
 				for (const section of menu.querySelectorAll('[role="group"]')) {

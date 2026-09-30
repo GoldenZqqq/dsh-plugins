@@ -7,15 +7,15 @@
  * 默认全部收起,点击分组标题才展开;标题上显示折叠箭头和模型数量,
  * 展开状态记入浏览器 localStorage,下次打开保持用户的选择。
  *
- * v1.1 新增:菜单顶部常驻快捷条(菜单是 flex 列,快捷条是 .groups 滚动区的
- * 兄弟节点,天然钉在顶部,滚动列表时始终可见):
- *  - 「展开」/「收起」:一键展开 / 收起所有 provider 分组;
- *  - 「聚焦」:只展开"当前选中模型"所在分组,其余全部收起(provider 多时
+ * v1.2:官方模型菜单自带搜索框(4 个以上模型即显示),插件自己的筛选输入框
+ * 变成重复入口,已移除,只保留分组操作。
+ * 菜单顶部常驻快捷条(菜单是 flex 列,快捷条是 .groups 滚动区的兄弟节点,
+ * 天然钉在顶部,滚动列表时始终可见),四个图标按钮,无文字:
+ *  - 全部展开 / 全部收起:一键展开 / 收起所有 provider 分组;
+ *  - 定位当前:只展开"当前选中模型"所在分组,其余全部收起(provider 多时
  *    一眼定位当前模型归属);
- *  - 「↺」:清空展开状态记忆,回到初始(选中组展开、其余收起);
- *  - 筛选输入框:按关键字实时过滤模型,命中的分组自动展开、未命中的
- *    分组整组隐藏,数量角标变成 命中/总数;Esc 清空、Enter 跳到首个匹配。
- *  - 键盘:Alt+E 全部展开 / Alt+C 全部收起 / Alt+F 聚焦筛选框。
+ *  - 重置记忆:清空展开状态记忆,回到初始(选中组展开、其余收起)。
+ *  - 键盘:Alt+E 全部展开 / Alt+C 全部收起 / Alt+F 定位当前模型。
  *
  * 实现仍然是完全的 DOM 增强层,不替换、不包裹任何 React 管理的节点:
  *  - 唯一新增的节点是快捷条本身,prepend 在菜单根部;React 更新时只操作
@@ -54,18 +54,23 @@ window.__ModuleLoader__.load({
 			'[role="menu"] [role="group"] > [data-dshmc]::after { content: "(" attr(data-dshmc-count) ")"; margin-left: 6px; font-size: 11px; font-weight: 400; opacity: 0.45; }',
 			'/* 收起的分组:隐藏其模型行(display:none 同时把它们移出 Tab 焦点序) */',
 			'[role="menu"] [role="group"][data-dshmc-collapsed] > button { display: none !important; }',
+			'/* 面板宽度钉死:官方菜单是 width:max-content,长模型名会把面板顶到 420px,',
+			'   快捷条(右对齐)随之横跳。这里锁成恒定宽度,展开收起不再改变尺寸。 */',
+			'[role="menu"]:has([data-dshmc]) { width: 300px; min-width: 300px; max-width: 300px; }',
+			'/* 模型名与分组标题超长时省略,而不是撑开面板。标题是 flex 行,min-width:0 才能让省略生效。 */',
+			'[role="menu"] [role="group"] > button { min-width: 0; max-width: 100%; }',
+			'[role="menu"] [role="group"] > button * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
+			'[role="menu"] [role="group"] > [data-dshmc] { display: flex; align-items: center; min-width: 0; max-width: 100%; overflow: hidden; }',
+			'[role="menu"] [role="group"] > [data-dshmc]::after { flex: 0 0 auto; }',
 			'/* ===== 顶部快捷条:菜单 flex 列的直子节,在列表滚动区之外,永不遮挡任何模型行 ===== */',
-			'[data-dshmc-quickbar] { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; width: 100%; box-sizing: border-box; padding: 5px 6px 6px; border: 1px solid var(--dsw-alias-border-l1, rgba(255,255,255,.08)); border-bottom-color: var(--dsw-alias-border-l2, rgba(255,255,255,.12)); border-radius: 8px 8px 0 0; background: var(--dsw-specific-menu, #353638); }',
-			'[data-dshmc-quickbar] button { flex: 0 0 auto; display: inline-flex; align-items: center; height: 28px; font: inherit; font-size: 12px; font-weight: 500; line-height: 1; padding: 0 9px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary, #cfd3d6); cursor: pointer; transition: background .12s ease, color .12s ease; }',
+			'/* 视觉对齐官方菜单:同一套 1px 描边图标、24px 圆形按钮、caption 色,无边框无底。 */',
+			'[data-dshmc-quickbar] { flex: 0 0 auto; display: flex; align-items: center; gap: 1px; width: auto; align-self: flex-end; box-sizing: border-box; margin: 0 0 1px; padding: 0 2px 1px; border: none; border-radius: 0; background: transparent; }',
+			'[data-dshmc-quickbar] button { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%; background: transparent; color: var(--dsw-alias-label-caption, #9aa0a6); cursor: pointer; transition: background .12s ease, color .12s ease; }',
 			'[data-dshmc-quickbar] button:hover, [data-dshmc-quickbar] button:focus-visible { background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; }',
-			'[data-dshmc-quickbar] input { flex: 1 1 auto; min-width: 0; height: 28px; box-sizing: border-box; font: inherit; font-size: 12px; line-height: 1; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l2, rgba(255,255,255,.12)); border-radius: 6px; background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,.08)); color: var(--dsw-alias-label-primary, #f9fafb); outline: none; transition: border-color .12s ease, background .12s ease; }',
-			'[data-dshmc-quickbar] input::placeholder { color: var(--dsw-alias-label-tertiary, #adb2b8); }',
-			'[data-dshmc-quickbar] input:focus { border-color: var(--dsw-alias-border-l3, rgba(255,255,255,.16)); background: var(--dsw-alias-interactive-bg-active, rgba(255,255,255,.14)); }',
-			'/* ===== 筛选模式:未命中的行/分组隐藏,命中分组强制展开 ===== */',
-			'[role="menu"] [role="group"][data-dshmc-hidden] { display: none !important; }',
-			'[role="menu"][data-dshmc-filtering] [role="group"] > button:not([data-dshmc-hit]) { display: none !important; }',
-			'/* 快捷条 sticky 钉顶后,列表滚动/焦点导航要把行滚到快捷条下方才可见(scroll-padding-top 覆盖所有 scrollIntoView/focus 触发)。 */',
-			'*:has(> [data-dshmc-quickbar]) { scroll-padding-top: 42px; }',
+			'[data-dshmc-quickbar] button:active { background: var(--dsw-alias-interactive-bg-active, rgba(255,255,255,.14)); }',
+			'[data-dshmc-quickbar] svg { display: block; }',
+			'/* 快捷条钉在滚动区之外,列表滚动/焦点导航要把行滚到它下方才可见。 */',
+			'*:has(> [data-dshmc-quickbar]) { scroll-padding-top: 30px; }',
 		].join('\n');
 
 		function injectStyle() {
@@ -98,12 +103,8 @@ window.__ModuleLoader__.load({
 			return storedExpanded;
 		}
 
-		/** 筛选进行中时不写记忆(临时强制展开不是用户意图)。 */
-		let filterActive = false;
-
 		/** 把当前页面上所有分组的可见状态整体存回 localStorage。 */
 		function persistCurrentState() {
-			if (filterActive) return;
 			const titles = [];
 			for (const section of document.querySelectorAll('[role="menu"] [role="group"]')) {
 				const title = section.querySelector(':scope > [data-dshmc]');
@@ -160,11 +161,13 @@ window.__ModuleLoader__.load({
 		function expandAll() {
 			for (const section of allSections()) setCollapsed(section, false);
 			persistCurrentState();
+			syncToggle();
 		}
 
 		function collapseAll() {
 			for (const section of allSections()) setCollapsed(section, true);
 			persistCurrentState();
+			syncToggle();
 		}
 
 		/** 只展开"当前选中模型"所在的分组,其余全部收起。 */
@@ -179,6 +182,7 @@ window.__ModuleLoader__.load({
 			for (const section of sections) setCollapsed(section, section !== group);
 			if (group !== null) group.scrollIntoView({ block: 'nearest' });
 			persistCurrentState();
+			syncToggle();
 		}
 
 		/** 清空展开状态记忆,回到初始判定(首跑逻辑)。 */
@@ -193,6 +197,7 @@ window.__ModuleLoader__.load({
 				section.removeAttribute('data-dshmc-collapsed');
 				setCollapsed(section, initialCollapse(section, currentOpts));
 			}
+			syncToggle();
 		}
 
 		/* ---------- 装饰与初始状态判定 ---------- */
@@ -246,6 +251,7 @@ window.__ModuleLoader__.load({
 					for (const section of allSections()) setCollapsed(section, false);
 				}
 			}
+			syncToggle();
 		}
 
 		function scheduleFlush() {
@@ -294,34 +300,69 @@ window.__ModuleLoader__.load({
 
 		/* ---------- 顶部快捷条 ---------- */
 
-		const toolbarMenus = new WeakSet();
+		/**
+		 * 图标与官方图标同一套语言:16 viewBox、14px 渲染、1px 描边、round cap/join、
+		 * currentColor,按钮自身不带文字。
+		 */
+		const ICONS = {
+			'toggle-all': '<path d="M4 6.25 8 9.75 12 6.25"/><path d="M4 9.75 8 13.25 12 9.75"/>',
+			'focus-current': '<circle cx="8" cy="8" r="2.6"/><path d="M8 2.6v2.1M8 11.3v2.1M2.6 8h2.1M11.3 8h2.1"/>',
+			'reset-memory': '<path d="M3.4 8a4.6 4.6 0 1 0 1.05-2.95"/><path d="M3.2 2.9v2.5h2.5"/>',
+		};
 
-		function buildQuickbar(menu) {
+		/** 全部收起时箭头朝下(下一步是展开),否则朝上(下一步是收起)。 */
+		function paintToggle(button, collapsed) {
+			const svg = button.querySelector('svg');
+			if (svg !== null) svg.style.transform = collapsed ? '' : 'rotate(180deg)';
+			const label = collapsed ? '展开全部分组 (Alt+E)' : '收起全部分组 (Alt+C)';
+			button.setAttribute('aria-label', label);
+			button.title = label;
+			button.setAttribute('data-dshmc-collapsed-all', collapsed ? '' : null);
+		}
+
+		/** 按当前分组状态刷新切换按钮:有任一分组展开就显示"收起"。 */
+		function syncToggle() {
+			const button = document.querySelector('[data-dshmc-quickbar] [data-dshmc-action="toggle-all"]');
+			if (button === null) return;
+			const sections = allSections();
+			const collapsed = sections.length > 0 && sections.every((section) => section.hasAttribute('data-dshmc-collapsed'));
+			paintToggle(button, collapsed);
+		}
+
+		function iconSvg(action) {
+			const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+			svg.setAttribute('width', '14');
+			svg.setAttribute('height', '14');
+			svg.setAttribute('viewBox', '0 0 16 16');
+			svg.setAttribute('fill', 'none');
+			svg.setAttribute('aria-hidden', 'true');
+			svg.innerHTML = ICONS[action];
+			for (const node of svg.querySelectorAll('path, circle')) {
+				node.setAttribute('stroke', 'currentColor');
+				node.setAttribute('stroke-width', '1');
+				node.setAttribute('stroke-linecap', 'round');
+				node.setAttribute('stroke-linejoin', 'round');
+			}
+			return svg;
+		}
+
+		function buildQuickbar() {
 			const bar = document.createElement('div');
 			bar.setAttribute('data-dshmc-quickbar', '');
 			bar.setAttribute('role', 'presentation');
 
-			const mk = (label, action, title) => {
+			const mk = (action, label) => {
 				const button = document.createElement('button');
 				button.type = 'button';
-				button.textContent = label;
 				button.setAttribute('data-dshmc-action', action);
-				button.title = title;
+				button.setAttribute('aria-label', label);
+				button.title = label;
+				button.appendChild(iconSvg(action));
 				return button;
 			};
-			bar.appendChild(mk('展开', 'expand-all', '展开全部分组 (Alt+E)'));
-			bar.appendChild(mk('收起', 'collapse-all', '收起全部分组 (Alt+C)'));
-			bar.appendChild(mk('聚焦', 'focus-current', '只展开"当前选中模型"所在分组'));
-			bar.appendChild(mk('↺', 'reset-memory', '清空展开状态记忆,回到默认'));
-
-			const input = document.createElement('input');
-			input.type = 'text';
-			input.placeholder = '筛选模型…';
-			input.title = '按关键字筛选模型;Enter 跳到第一个匹配项;Esc 清空 (Alt+F 聚焦)';
-			input.setAttribute('data-dshmc-filter-input', '');
-			input.setAttribute('autocomplete', 'off');
-			input.setAttribute('spellcheck', 'false');
-			bar.appendChild(input);
+			bar.appendChild(mk('toggle-all', '展开全部分组 (Alt+E)'));
+			bar.appendChild(mk('focus-current', '只展开当前选中模型所在分组 (Alt+F)'));
+			bar.appendChild(mk('reset-memory', '清空展开状态记忆,回到默认'));
 
 			return bar;
 		}
@@ -338,93 +379,22 @@ window.__ModuleLoader__.load({
 			if (!(parent instanceof Element)) return;
 			if (parent.querySelector(':scope > [data-dshmc-quickbar]') !== null) return;
 
-			const bar = buildQuickbar(menu);
+			const bar = buildQuickbar();
 			parent.insertBefore(bar, groupsWrap);
 			/* 菜单整体卸载时快捷条随容器消失,无需额外回收。 */
-		}
-
-		/* ---------- 筛选 ---------- */
-
-		let filterTimer = 0;
-		function normalize(text) {
-			return (text || '').trim().toLowerCase();
-		}
-
-		/** 依据筛选输入框的值,对所有受管菜单应用/撤销过滤。 */
-		function applyFilter() {
-			const input = document.querySelector('[data-dshmc-filter-input]');
-			const query = normalize(input === null ? '' : input.value);
-			filterActive = query !== '';
-
-			for (const menu of document.querySelectorAll('[role="menu"]')) {
-				if (menu.querySelector('[role="group"]') === null) continue;
-
-				if (query === '') {
-					menu.removeAttribute('data-dshmc-filtering');
-					for (const section of menu.querySelectorAll('[role="group"]')) {
-						section.removeAttribute('data-dshmc-hidden');
-						for (const row of section.querySelectorAll(':scope > button')) {
-							row.removeAttribute('data-dshmc-hit');
-						}
-						if (isOurs(section)) {
-							/* 撤销筛选期间临时展开的状态,恢复用户记忆(无记忆则回到首跑逻辑)。 */
-							const saved = expandedTitles();
-							const title = section.querySelector(':scope > [data-dshmc]');
-							const name = title === null ? '' : (title.textContent || '').trim();
-							setCollapsed(
-								section,
-								saved === null ? initialCollapse(section, currentOpts) : !saved.has(name),
-							);
-							const total = String(section.querySelectorAll(':scope > button').length);
-							title.setAttribute('data-dshmc-count', total);
-						}
-					}
-					continue;
-				}
-
-				menu.setAttribute('data-dshmc-filtering', '');
-				for (const section of menu.querySelectorAll('[role="group"]')) {
-					const title = section.querySelector(':scope > [id]');
-					if (title === null) continue;
-					const titleHit = normalize(title.textContent).includes(query);
-					let hits = 0;
-					const rows = section.querySelectorAll(':scope > button');
-					for (const row of rows) {
-						const hit = titleHit || normalize(row.textContent).includes(query);
-						if (hit) row.setAttribute('data-dshmc-hit', '');
-						else row.removeAttribute('data-dshmc-hit');
-						if (hit) hits += 1;
-					}
-					section.removeAttribute('data-dshmc-hidden');
-					if (hits > 0) {
-						setCollapsed(section, false); /* 命中的分组强制展开 */
-					} else {
-						section.setAttribute('data-dshmc-hidden', ''); /* 无命中的整组隐藏 */
-					}
-					title.setAttribute('data-dshmc-count', hits + '/' + rows.length);
-				}
-			}
-		}
-
-		function scheduleFilter() {
-			clearTimeout(filterTimer);
-			filterTimer = setTimeout(applyFilter, 120);
-		}
-
-		function focusFilter() {
-			const input = document.querySelector('[data-dshmc-filter-input]');
-			if (input === null) return;
-			input.focus();
-			if (typeof input.select === 'function') input.select();
 		}
 
 		/* ---------- 动作分发 ---------- */
 
 		function runAction(action) {
-			if (action === 'expand-all') expandAll();
-			else if (action === 'collapse-all') collapseAll();
-			else if (action === 'focus-current') focusCurrent();
+			if (action === 'toggle-all') {
+				const sections = allSections();
+				const allCollapsed = sections.length > 0 && sections.every((section) => section.hasAttribute('data-dshmc-collapsed'));
+				if (allCollapsed) expandAll();
+				else collapseAll();
+			} else if (action === 'focus-current') focusCurrent();
 			else if (action === 'reset-memory') resetMemory();
+			syncToggle();
 		}
 
 		function toggleFrom(target) {
@@ -437,7 +407,7 @@ window.__ModuleLoader__.load({
 			const expanding = section.hasAttribute('data-dshmc-collapsed');
 			setCollapsed(section, !expanding);
 			/* 手风琴模式:展开某一组时自动收起其他组(可配置)。 */
-			if (expanding && currentOpts.accordion && !filterActive) {
+			if (expanding && currentOpts.accordion) {
 				const parent = section.parentElement;
 				if (parent !== null) {
 					for (const sibling of parent.querySelectorAll(':scope > [role="group"]')) {
@@ -446,6 +416,7 @@ window.__ModuleLoader__.load({
 				}
 			}
 			persistCurrentState();
+			syncToggle();
 			return true;
 		}
 
@@ -498,42 +469,12 @@ window.__ModuleLoader__.load({
 				true,
 			);
 
-			/* 筛选输入框:输入即过滤(防抖)。 */
-			document.addEventListener(
-				'input',
-				(event) => {
-					if (!(event.target instanceof Element)) return;
-					if (event.target.closest('[data-dshmc-filter-input]') !== null) scheduleFilter();
-				},
-				true,
-			);
-
 			document.addEventListener(
 				'keydown',
 				(event) => {
 					if (!(event.target instanceof Element)) return;
 
-					/* 筛选输入框内:接管按键,不让菜单看到(避免触发菜单的
-					   typeahead / Esc 关闭 / 方向键导航)。 */
-					if (event.target.closest('[data-dshmc-filter-input]') !== null) {
-						event.stopPropagation();
-						if (event.isComposing) return;
-						if (event.key === 'Escape') {
-							event.preventDefault();
-							event.target.value = '';
-							applyFilter();
-						} else if (event.key === 'Enter') {
-							event.preventDefault();
-							const first = document.querySelector('[role="menu"] [data-dshmc-hit]');
-							if (first !== null) {
-								first.focus();
-								first.scrollIntoView({ block: 'nearest' });
-							}
-						}
-						return;
-					}
-
-					/* Alt+E 全部展开 / Alt+C 全部收起 / Alt+F 聚焦筛选框 */
+					/* Alt+E 全部展开 / Alt+C 全部收起 / Alt+F 定位当前模型 */
 					if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.isComposing) {
 						const key = event.key.toLowerCase();
 						if (key === 'e') {
@@ -549,7 +490,7 @@ window.__ModuleLoader__.load({
 							return;
 						}
 						if (key === 'f') {
-							focusFilter();
+							focusCurrent();
 							event.preventDefault();
 							event.stopPropagation();
 							return;
@@ -607,10 +548,7 @@ window.__ModuleLoader__.load({
 					}
 				}
 			}
-			/* 菜单关闭会带走快捷条;输入框没了就认为筛选已结束。 */
-			if (document.querySelector('[data-dshmc-filter-input]') === null && filterActive) {
-				filterActive = false;
-			}
+			syncToggle();
 		}
 
 		function apply(_ctx, config = {}) {

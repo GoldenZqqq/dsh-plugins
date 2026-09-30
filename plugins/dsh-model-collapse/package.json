@@ -1,7 +1,7 @@
 {
   "name": "dsh-model-collapse",
-  "version": "1.1.0",
-  "description": "DSH web plugin: collapse the model picker by provider, with a pinned quick bar for expand-all / collapse-all / focus-current / filter / reset.",
+  "version": "1.2.0",
+  "description": "DSH web plugin: collapse the model picker by provider, with a pinned icon quick bar for expand-all / collapse-all / focus-current / reset.",
   "license": "MIT",
   "type": "commonjs",
   "main": "index.js",

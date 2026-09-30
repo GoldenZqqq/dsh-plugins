@@ -12,8 +12,8 @@
  *   enabled:             boolean  总开关(默认 true)
  *   expandSelectedGroup: boolean  首次使用时是否默认展开"当前选中模型"所在
  *                                 分组(默认 true;false 则全部收起)
- *   quickBar:            boolean  菜单顶部常驻快捷条:展开/收起/聚焦/重置/筛选
- *                                 (默认 true;false 关闭)
+ *   quickBar:            boolean  菜单顶部常驻图标快捷条:展开/收起/定位/重置
+ *                                 (默认 true;false 关闭)。筛选由官方搜索框负责。
  *   accordion:           boolean  手风琴模式:展开某分组时自动收起其他分组
  *                                 (默认 false)
  */

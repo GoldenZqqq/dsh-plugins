@@ -4,8 +4,10 @@
 #   enabled:             boolean  master switch (default true)
 #   expandSelectedGroup: boolean  expand the group of the currently selected
 #                                 model on first run (default true)
-#   quickBar:            boolean  pinned quick bar at the top of the menu
-#                                 (default true)
+#   quickBar:            boolean  pinned icon quick bar at the top of the menu:
+#                                 expand / collapse / focus-current / reset
+#                                 (default true). Filtering is the official
+#                                 model search's job.
 #   accordion:           boolean  expanding one group collapses the others
 #                                 (default false)
 - insert:

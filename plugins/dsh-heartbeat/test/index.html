@@ -133,6 +133,24 @@
   };
 
   let disposer = null;
+  let declared = null;
+
+  /*
+   * 复刻 cordis 的嵌套服务守卫：没在 inject 里声明 "remote.session" 就读它，
+   * 真实环境会抛 `cannot get property "remote.session" without inject`。
+   * 这个坑让整块面板静默显示 0 过，所以测试台必须能重现它。
+   */
+  function guardedRemote(declaredNames) {
+    return {
+      get session() {
+        if (declaredNames === null || !declaredNames.has('remote.session')) {
+          throw new Error('cannot get property "remote.session" without inject');
+        }
+        return stream;
+      },
+    };
+  }
+
   const ctx = {
     get(name) {
       if (name === 'connection') {
@@ -152,7 +170,7 @@
           subagentAddress: () => undefined,
         };
       }
-      if (name === 'remote') return { session: stream };
+      if (name === 'remote') return guardedRemote(declared);
       return undefined;
     },
     on() { return () => {}; },
@@ -163,9 +181,12 @@
   const factory = window.__hbReg.factory;
   const plugin = factory(() => { throw new Error('client.js 不应该 require 任何模块'); });
 
+  declared = new Set(Array.isArray(plugin.inject) ? plugin.inject : []);
+
   check('模块导出 apply/inject', typeof plugin.apply === 'function' && Array.isArray(plugin.inject),
     'inject = ' + JSON.stringify(plugin.inject));
   check('inject 不含 slots', plugin.inject.indexOf('slots') === -1);
+  check('inject 声明了 remote.session', declared.has('remote.session'));
 
   plugin.apply(ctx, {});
   const host = document.getElementById('dsh-heartbeat');

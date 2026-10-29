@@ -1154,8 +1154,13 @@ window.__ModuleLoader__.load({
 		 * 客户端插件体
 		 * ══════════════════════════════════════════════════════════════════ */
 
-		/** 只依赖这三个稳定服务；不再要求 slots（槽表跨版本会删键）。 */
-		const inject = ['connection', 'sessions', 'remote'];
+		/**
+		 * 依赖的服务。注意 remote.session 必须单独声明：
+		 * cordis 的服务代理对嵌套服务做了 inject 守卫，只写 "remote" 的时候
+		 * 读 ctx.remote.session 会直接抛 `cannot get property "remote.session" without inject`。
+		 * 不要求 slots —— 槽表跨版本会删键。
+		 */
+		const inject = ['connection', 'sessions', 'remote', 'remote.session'];
 
 		function normalizeConfig(raw) {
 			const c = raw && typeof raw === 'object' ? raw : {};
@@ -1246,7 +1251,15 @@ window.__ModuleLoader__.load({
 				const key = address.kind === 'session' ? address.sessionId : address.childSessionId;
 				(async () => {
 					try {
-						if (!remote || !remote.session || typeof remote.session.follow !== 'function') {
+						/* remote.session 是嵌套服务，读取本身就可能被 inject 守卫拦下，单独兜。 */
+						let sessionRemote;
+						try {
+							sessionRemote = remote && remote.session;
+						} catch (error) {
+							warnOnce('读取 remote.session 失败（inject 里必须声明 "remote.session"）', error);
+							return;
+						}
+						if (!sessionRemote || typeof sessionRemote.follow !== 'function') {
 							warnOnce('remote.session.follow 不可用，无法测量 token 速度');
 							return;
 						}
@@ -1254,7 +1267,7 @@ window.__ModuleLoader__.load({
 						 * assistantStream: true 是关键：0.2.x 的实时 token 走 process-local 的
 						 * assistant-stream 帧，不显式请求就一帧都不下发，心率会一直停在冬息档。
 						 */
-						for await (const frame of remote.session.follow({ address, assistantStream: true }, signal)) {
+						for await (const frame of sessionRemote.follow({ address, assistantStream: true }, signal)) {
 							if (disposed || signal.aborted) break;
 							if (!frame) continue;
 							if (frame.type === 'event' && frame.event) {

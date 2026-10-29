@@ -30,6 +30,17 @@
     "ui"
   ],
   "author": "GoldenZqqq",
+  "dshCompat": {
+    "tested": [
+      "0.2.1-rc.3"
+    ],
+    "range": ">=0.1.7 <0.3.0",
+    "verifiedAt": "2026-10-29",
+    "dependsOn": [
+      "dom:workspace-tree",
+      "dom:role=treeitem[aria-expanded]"
+    ]
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

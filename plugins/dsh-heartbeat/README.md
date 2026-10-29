@@ -77,13 +77,28 @@ python -m http.server 8099
 
 改了 client.js 之后先跑一遍这个，比重启 DSH 试错快得多。
 
+## 兼容性
+
+**实测 DSH `0.2.1-rc.3`**（2026-10-29），声明区间 `>=0.2.0 <0.3.0`。
+校验方式与各版本的 breaking change 记录见仓库根的 [COMPATIBILITY.md](../../COMPATIBILITY.md)。
+
+这个插件踩过两个只在 0.2.x 才出现的坑，升级 DSH 时优先核对这两处：
+
+1. **`assistantStream: true`** —— 宿主只有在 follow 请求里看到这个标志，才会注册
+   `agent/assistant-stream` 监听；否则一帧实时数据都不发，表现是"界面在、状态在，
+   但 tok/s 和 tokens 永远是 0"。
+2. **`inject` 必须写 `remote.session`** —— 它是需要单独声明的嵌套服务，只写 `remote`
+   时读它会抛 `cannot get property "remote.session" without inject`。这个异常发生在
+   `try/catch` 里，界面不报错、只是永远 0。回归台的「inject 声明了 remote.session」
+   就是盯这一条的。
+
 ## 实现要点
 
 - **不注册 DSH 的 slot**。`sidebar.header.dock` 在 0.2.x 已被移除，槽表还会继续变；
   直接挂 `document.body` 才是跨版本稳的做法。`shell.overlay` 那条路也放弃了 ——
   浮层默认点击穿透，挂上去会拖不动。
-- **只依赖三个稳定服务**：`connection` / `sessions` / `remote`，`inject` 里没有 `slots`。
-  每处取值都做了空值兜底，任何一处 API 漂移都不会让小组件整个消失。
+- **依赖四个服务**：`connection` / `sessions` / `remote` / `remote.session`，
+  `inject` 里没有 `slots`。每处取值都做了兜底，任何一处 API 漂移都不会让小组件整个消失。
 - **零 npm 依赖**：不 require react，也不 require 任何 `@deepseek-ai/*` 客户端包，
   纯 DOM + Canvas。
 - 动画统一由 rAF 驱动，React 完全不参与重渲染。

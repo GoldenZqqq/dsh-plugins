@@ -13,6 +13,26 @@ GoldenZqqq 的 DeepSeek Harness (DSH) 自制插件集合。每个插件是 `plug
 | [dsh-heartbeat](plugins/dsh-heartbeat/README.md) | web 客户端 UI | 心率监视器：token 速度驱动 ECG 波形与生命体征面板，出错心律不齐、重试早搏、等审批屏息（移植自 superzhang21/dsh-heartbeat，已适配 0.2.x） |
 | [dsh-win-toast](plugins/dsh-win-toast/README.md) | 宿主端 | turn 完成/失败/受阻时弹 Windows 系统级通知（Toast），上游断流导致对话中断不再错过 |
 
+## 兼容性
+
+**当前实测：DSH `0.2.1-rc.3`**（2026-10-29）。DSH 小版本之间动接口很频繁，所以每个插件
+在 `package.json` 的 `dshCompat` 里声明了实测版本与兼容区间，并且可以一键校验：
+
+```powershell
+node scripts/check-compat.mjs          # 对比当前 dsh 版本与各插件声明
+```
+
+| 插件 | 实测 DSH | 兼容区间 |
+| --- | --- | --- |
+| dsh-heartbeat | `0.2.1-rc.3` | `>=0.2.0 <0.3.0` |
+| dsh-model-collapse | `0.2.1-rc.3` | `>=0.1.7 <0.3.0` |
+| dsh-workspace-collapse | `0.2.1-rc.3` | `>=0.1.7 <0.3.0` |
+| dsh-win-toast | `0.2.1-rc.3` | `>=0.1.7 <0.3.0` |
+
+升级 DSH 前先跑一次校验，再按 [COMPATIBILITY.md](COMPATIBILITY.md) 的升级流程回归 ——
+那里还按版本记录了踩过的 breaking change（`assistantStream` 门控、`remote.session` 的
+inject 守卫、被移除的 `sidebar.header.dock` 槽等）。
+
 ## 安装
 
 ```powershell
@@ -47,7 +67,10 @@ plugins/<name>/       每个插件一个独立 npm 包（零依赖、CommonJS、
   client.js           浏览器半体（仅 UI 类插件；package.json 里 dsh.client.platform: "web"）
   cordis.patch.yml    给用户复制的补丁样例（可选）
   README.md           功能/配置/安装说明
-scripts/install.ps1   安装脚本（Junction / 复制）
+  test/index.html     浏览器半体的回归台（可选，仅 UI 类插件）
+scripts/install.ps1    安装脚本（Junction / 复制）
+scripts/check-compat.mjs  DSH 版本兼容性校验
+COMPATIBILITY.md      兼容性声明规范 + 各版本 breaking change 记录
 ```
 
 ## 开发约定

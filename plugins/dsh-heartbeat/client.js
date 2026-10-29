@@ -1142,9 +1142,10 @@ window.__ModuleLoader__.load({
 			const streamAborts = new Map();
 			const startedIds = new Set();
 
-			const connection = ctx.get ? ctx.get('connection') : ctx.connection;
-			const sessions = ctx.get ? ctx.get('sessions') : ctx.sessions;
-			const remote = ctx.get ? ctx.get('remote') : ctx.remote;
+			/* 两种取法都试：cordis 的 ctx.get(name)，以及个别装配下直接挂在 ctx 上的属性。 */
+			const connection = (ctx.get && ctx.get('connection')) || ctx.connection;
+			const sessions = (ctx.get && ctx.get('sessions')) || ctx.sessions;
+			const remote = (ctx.get && ctx.get('remote')) || ctx.remote;
 
 			/* ── 连接状态 ─────────────────────────────────────────── */
 			let offState = () => {};

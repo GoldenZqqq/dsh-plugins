@@ -22,14 +22,20 @@
   Replace an existing install (a plain directory, or a junction pointing
   somewhere else).
 
+.PARAMETER ProfileName
+  DSH profile to install into. DSH resolves plugin packages from the profile's
+  own node_modules, so this is the directory that actually takes effect.
+  Default: web
+
 .PARAMETER NodeModules
   Target node_modules directory.
-  Default: $env:USERPROFILE\.dsh\profiles\node_modules
+  Default: $env:USERPROFILE\.dsh\profiles\<ProfileName>\node_modules
 
 .EXAMPLE
   .\install.ps1 -All
   .\install.ps1 -Name dsh-win-toast
   .\install.ps1 -All -Copy -Force
+  .\install.ps1 -All -ProfileName tui
 #>
 [CmdletBinding()]
 param(
@@ -38,12 +44,19 @@ param(
     [switch]$All,
     [switch]$Copy,
     [switch]$Force,
-    [string]$NodeModules = (Join-Path $env:USERPROFILE '.dsh\profiles\node_modules')
+    [string]$ProfileName = 'web',
+    [string]$NodeModules = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginsRoot = Join-Path $repoRoot 'plugins'
+
+# 默认装到 profile 自己的 node_modules —— 早先版本默认写的是
+# ~\.dsh\profiles\node_modules，那个目录不在 DSH 的解析路径上，装进去不会加载。
+if ([string]::IsNullOrWhiteSpace($NodeModules)) {
+    $NodeModules = Join-Path $env:USERPROFILE ".dsh\profiles\$ProfileName\node_modules"
+}
 
 $available = @(Get-ChildItem $pluginsRoot -Directory | Select-Object -ExpandProperty Name)
 if ($available.Count -eq 0) { throw "No plugins found under $pluginsRoot" }

@@ -10,6 +10,7 @@ GoldenZqqq 的 DeepSeek Harness (DSH) 自制插件集合。每个插件是 `plug
 | --- | --- | --- |
 | [dsh-model-collapse](plugins/dsh-model-collapse/README.md) | web 客户端 UI | 模型选择菜单按 provider 默认折叠，常驻快捷条（展开/收起/聚焦/筛选），localStorage 记忆展开状态 |
 | [dsh-workspace-collapse](plugins/dsh-workspace-collapse/README.md) | web 客户端 UI | 左侧工作区列表一键切换折叠/展开全部目录，不再逐个点击 |
+| [dsh-heartbeat](plugins/dsh-heartbeat/README.md) | web 客户端 UI | 心率监视器：token 速度驱动 ECG 波形与生命体征面板，出错心律不齐、重试早搏、等审批屏息（移植自 superzhang21/dsh-heartbeat，已适配 0.2.x） |
 | [dsh-win-toast](plugins/dsh-win-toast/README.md) | 宿主端 | turn 完成/失败/受阻时弹 Windows 系统级通知（Toast），上游断流导致对话中断不再错过 |
 
 ## 安装
@@ -21,10 +22,13 @@ cd dsh-plugins/scripts
 .\install.ps1 -Name dsh-win-toast   # 只装一个
 .\install.ps1 -All -Copy            # 复制方式，不用 Junction
 .\install.ps1 -All -Force           # 覆盖已有安装
+.\install.ps1 -All -ProfileName web # 指定 profile（默认 web）
 ```
 
-- 默认在 `~/.dsh/profiles/node_modules/<name>` 建 **NTFS Junction** 指回本 repo
+- 默认在 `~/.dsh/profiles/<profile>/node_modules/<name>` 建 **NTFS Junction** 指回本 repo
   （免管理员权限）：改 repo 里的代码即时生效，重启 DSH 加载。
+  DSH 解析插件时用的是 **profile 目录下**的 node_modules，装到
+  `~/.dsh/profiles/node_modules` 是加载不到的 —— 这是最早版本脚本的默认值，已修正。
 - `-Copy` 为纯复制，改代码后需重跑脚本。
 - 已装过同名插件的旧目录会被 `-Force` 替换。
 

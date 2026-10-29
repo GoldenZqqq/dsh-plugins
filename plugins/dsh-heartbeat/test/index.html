@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>dsh-heartbeat harness</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0d1117; color: #e6e8ee;
+    font: 13px/1.5 system-ui, "Segoe UI", sans-serif; }
+  #panel { position: fixed; left: 16px; top: 16px; width: 420px; padding: 14px 16px;
+    border: 0.5px solid #2a3140; border-radius: 12px; background: #141a23; }
+  #panel h1 { margin: 0 0 8px; font-size: 14px; }
+  #log { margin: 8px 0 0; padding: 0; list-style: none; font-family: ui-monospace, Consolas, monospace;
+    font-size: 11.5px; max-height: 60vh; overflow: auto; }
+  #log li { padding: 1px 0; }
+  .ok { color: #3fb950; }
+  .bad { color: #f85149; }
+  .dim { color: #8b949e; }
+</style>
+</head>
+<body>
+<div id="panel">
+  <h1>dsh-heartbeat · 无 DSH 测试台</h1>
+  <div class="dim">用假 ctx 挂载插件，模拟 token 流 / 出错 / 重试，检查小组件是否真的动起来。</div>
+  <ul id="log"></ul>
+</div>
+
+<script>
+  window.__ModuleLoader__ = {
+    load(reg) { window.__hbReg = reg; },
+  };
+</script>
+<script src="../client.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const logEl = document.getElementById('log');
+  const results = [];
+  window.__test = { results, done: false };
+
+  /* 清掉上一轮的记忆，保证每次都是"首次安装"的默认形态。 */
+  try { window.localStorage.clear(); } catch {}
+
+  function log(msg, cls) {
+    const li = document.createElement('li');
+    if (cls) li.className = cls;
+    li.textContent = msg;
+    logEl.appendChild(li);
+  }
+  function check(name, pass, detail) {
+    results.push({ name, pass, detail });
+    log((pass ? '✓ ' : '✗ ') + name + (detail ? '  ' + detail : ''), pass ? 'ok' : 'bad');
+  }
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  /* ── 假 ctx ───────────────────────────────────────────────── */
+  const stateSubs = new Set();
+  let connectionState = 'connected';
+
+  const listSnapshot = {
+    ids: ['s1'],
+    byId: { s1: { id: 's1', running: true, origin: undefined } },
+  };
+  const listSubs = new Set();
+
+  const eventQueue = [];
+  let wake = null;
+
+  function emitEvent(ev) {
+    eventQueue.push(ev);
+    if (wake) { const fn = wake; wake = null; fn(); }
+  }
+
+  const stream = {
+    async *follow(request, signal) {
+      yield { type: 'snapshot', header: {}, cursor: 0, records: [], hasMore: false, projections: {} };
+      while (!signal.aborted) {
+        if (eventQueue.length === 0) {
+          await new Promise((resolve) => {
+            wake = resolve;
+            setTimeout(resolve, 60);
+          });
+        }
+        while (eventQueue.length > 0) {
+          if (signal.aborted) return;
+          yield { type: 'event', event: eventQueue.shift() };
+        }
+      }
+    },
+  };
+
+  let disposer = null;
+  const ctx = {
+    get(name) {
+      if (name === 'connection') {
+        return {
+          state: {
+            getSnapshot: () => connectionState,
+            subscribe(fn) { stateSubs.add(fn); return () => stateSubs.delete(fn); },
+          },
+        };
+      }
+      if (name === 'sessions') {
+        return {
+          list: {
+            getSnapshot: () => listSnapshot,
+            subscribe(fn) { listSubs.add(fn); return () => listSubs.delete(fn); },
+          },
+          subagentAddress: () => undefined,
+        };
+      }
+      if (name === 'remote') return { session: stream };
+      return undefined;
+    },
+    on() { return () => {}; },
+    effect(fn) { disposer = fn(); },
+  };
+
+  /* ── 启动 ─────────────────────────────────────────────────── */
+  const factory = window.__hbReg.factory;
+  const plugin = factory(() => { throw new Error('client.js 不应该 require 任何模块'); });
+
+  check('模块导出 apply/inject', typeof plugin.apply === 'function' && Array.isArray(plugin.inject),
+    'inject = ' + JSON.stringify(plugin.inject));
+  check('inject 不含 slots', plugin.inject.indexOf('slots') === -1);
+
+  plugin.apply(ctx, {});
+  const host = document.getElementById('dsh-heartbeat');
+  check('小组件挂载到 body', host !== null);
+  check('默认卡片形态', host && host.dataset.mode === 'card');
+
+  (async function run() {
+    await sleep(400);
+    const bpm0 = Number(host.querySelector('.hb-bpm').textContent);
+    check('静息心率在 20–30', bpm0 >= 20 && bpm0 <= 30, 'bpm = ' + bpm0);
+
+    /* 3 秒高速吐字 */
+    const burstTimer = setInterval(() => {
+      emitEvent({ type: 'request/header', data: { header: { config: { provider: 'deepseek', model: 'deepseek-flash' } } } });
+      emitEvent({ type: 'assistant/live-chunk', data: { chunk: { type: 'text-delta' } } });
+      emitEvent({ type: 'assistant/live-chunk', data: { chunk: { type: 'text-delta' } } });
+      emitEvent({ type: 'assistant/live-chunk', data: { chunk: { type: 'text-delta' } } });
+    }, 25);
+
+    await sleep(2600);
+    clearInterval(burstTimer);
+
+    const bpm1 = Number(host.querySelector('.hb-bpm').textContent);
+    const rate = host.querySelectorAll('.hb-metric b')[0].textContent;
+    check('吐字后心率上升', bpm1 > 80, 'bpm = ' + bpm1 + ', rate = ' + rate + ' tok/s');
+    check('状态切到 streaming/burst', ['streaming', 'burst'].indexOf(host.dataset.state) >= 0, 'state = ' + host.dataset.state);
+    check('模型名已填入', host.querySelector('.hb-model').textContent.indexOf('deepseek') >= 0,
+      'model = ' + host.querySelector('.hb-model').textContent);
+    check('TTFT 有值', host.querySelectorAll('.hb-metric b')[1].textContent !== '—',
+      'ttft = ' + host.querySelectorAll('.hb-metric b')[1].textContent);
+
+    /* 出错 → 心律不齐 */
+    emitEvent({ type: 'turn/end', data: { reason: { kind: 'error' } } });
+    await sleep(500);
+    check('出错 → 心律不齐', host.dataset.state === 'arrhythmia', 'state = ' + host.dataset.state);
+
+    /* 重试 → 早搏 */
+    await sleep(100);
+    emitEvent({ type: 'llm/retry', data: {} });
+    await sleep(200);
+    check('重试 → 早搏', host.dataset.state === 'premature', 'state = ' + host.dataset.state);
+
+    /* ECG 有像素被画出来 */
+    const canvas = host.querySelector('canvas');
+    const c2d = canvas.getContext('2d');
+    const pixels = c2d.getImageData(0, 0, canvas.width, canvas.height).data;
+    let painted = 0;
+    for (let i = 3; i < pixels.length; i += 4) if (pixels[i] > 8) painted += 1;
+    check('ECG 画布有内容', painted > 500, painted + ' 个不透明像素');
+
+    /* 迷你条切换 */
+    host.querySelectorAll('.hb-menu button')[0].click();
+    await sleep(120);
+    check('可切到迷你条', host.dataset.mode === 'rail', 'mode = ' + host.dataset.mode);
+    check('迷你条显示 BPM', host.querySelector('.hb-rail-bpm').textContent.match(/^\d+$/) !== null,
+      'rail bpm = ' + host.querySelector('.hb-rail-bpm').textContent);
+
+    /* 断线 */
+    connectionState = 'offline';
+    stateSubs.forEach((fn) => fn('offline'));
+    await sleep(300);
+    check('断线 → 离线状态', host.dataset.state === 'disconnected', 'state = ' + host.dataset.state);
+
+    /* 卸载 */
+    if (typeof disposer === 'function') disposer();
+    await sleep(120);
+    check('卸载后 DOM 已清理', document.getElementById('dsh-heartbeat') === null);
+
+    window.__test.done = true;
+    const failed = results.filter((r) => !r.pass).length;
+    log(failed === 0 ? '全部通过（' + results.length + ' 项）' : failed + ' 项失败', failed === 0 ? 'ok' : 'bad');
+  })();
+})();
+</script>
+</body>
+</html>
+

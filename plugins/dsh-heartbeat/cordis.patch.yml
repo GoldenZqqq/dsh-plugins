@@ -1,0 +1,24 @@
+# dsh-heartbeat bundle patch.
+# Applied by `dsh plugin add` / the dsh-market installer.
+# Config keys (all optional):
+#   enabled:   boolean  master switch (default true)
+#   mode:      'card' | 'rail'  initial shape (default card). rail = heart + BPM only
+#   scale:     number   overall zoom 0.8–1.6 (default 1)
+#   opacity:   number   resting opacity 0.4–1 (default 1, restores to 1 on hover)
+#   showEcg:   boolean  draw the ECG trace (default true)
+#   showHud:   boolean  show tok/s, TTFT, tokens, tool calls (default true)
+#   position:  initial corner: top-left | top-right | bottom-left | bottom-right
+#              (default bottom-right; the dragged position is remembered after that)
+#   accent:    string   custom accent color (CSS color; empty = per-state color)
+- insert:
+    - id: heartbeat
+      name: dsh-heartbeat
+      config:
+        enabled: true
+        mode: card
+        scale: 1
+        opacity: 1
+        showEcg: true
+        showHud: true
+        position: bottom-right
+        accent: ''

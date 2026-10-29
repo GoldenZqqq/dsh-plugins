@@ -1,6 +1,6 @@
 {
   "name": "dsh-heartbeat",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "DSH web plugin: a living heart-rate monitor — token-output speed drives a real ECG, a vitals HUD, and a pathology state machine (arrhythmia on errors, ectopic beats on retries, apnea while waiting).",
   "license": "MIT",
   "type": "commonjs",

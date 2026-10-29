@@ -465,13 +465,17 @@ window.__ModuleLoader__.load({
 				return 0.25 * gauss(phase, 0.18, 0.05) + 0.55 * gauss(phase, 0.32, 0.018) + 0.12 * gauss(phase, 0.6, 0.07);
 			}
 
-			/* 正常 P-QRS-T。 */
+			/*
+			 * 正常 P-QRS-T：P 小丘 → Q 小凹 → R 高尖(向上) → S 回弹 → T 宽丘。
+			 * 符号必须写在本项所在的行首：写成「前一项 + ... - // 注释」再换行，
+			 * 减号实际作用于下一项，R 波会被翻转成向下的 V 字（这个坑真踩过）。
+			 */
 			let v =
-				0.13 * gauss(phase, 0.14, 0.028) + // P
-				0.22 * gauss(phase, 0.28, 0.016) - // Q
-				1.0 * gauss(phase, 0.302, 0.011) + // R
-				0.26 * gauss(phase, 0.326, 0.014) + // S
-				0.30 * gauss(phase, 0.5, 0.045); // T
+				+0.13 * gauss(phase, 0.14, 0.028) // P
+				- 0.22 * gauss(phase, 0.28, 0.016) // Q
+				+ 1.0 * gauss(phase, 0.302, 0.013) // R
+				- 0.26 * gauss(phase, 0.326, 0.014) // S
+				+ 0.3 * gauss(phase, 0.5, 0.045); // T
 
 			/* 轻微基线漂移 + 噪声，像真实贴电极的信号。 */
 			v += Math.sin(phase * Math.PI * 2) * 0.015 + (Math.random() - 0.5) * 0.012;

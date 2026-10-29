@@ -219,6 +219,40 @@
     check('TTFT 有值', metric(1) !== '—', 'ttft = ' + metric(1));
     check('tokens 在累加', Number(metric(2).replace('k', '')) > 0, 'tokens = ' + metric(2));
 
+    /*
+     * 波形极性：R 波必须向上。
+     * 曾经因为减号写在了"上一项的行尾"，R 项被整体取负，整条心电图翻成 V 字，
+     * 而当时所有断言（有像素、会动）依然全绿 —— 所以这里量的是振幅方向。
+     */
+    {
+      const canvas = host.querySelector('canvas');
+      const c2d = canvas.getContext('2d');
+      const { width: cw, height: ch } = canvas;
+      const px = c2d.getImageData(0, 0, cw, ch).data;
+      let top = ch;
+      let bottom = 0;
+      for (let y = 0; y < ch; y += 1) {
+        for (let x = 0; x < cw; x += 1) {
+          const i = (y * cw + x) * 4;
+          const r = px[i];
+          const g = px[i + 1];
+          const b = px[i + 2];
+          const a = px[i + 3];
+          /* 只认彩色像素：网格是低饱和灰，波形是状态色（绿/红）。 */
+          if (a > 60 && Math.max(r, g, b) - Math.min(r, g, b) > 50) {
+            if (y < top) top = y;
+            if (y > bottom) bottom = y;
+          }
+        }
+      }
+      const mid = ch * 0.62;
+      const up = mid - top;
+      const down = bottom - mid;
+      check('R 波向上（波形没有倒置成 V 字）',
+        up > down * 1.4 && up > ch * 0.12,
+        'up = ' + Math.round(up) + 'px, down = ' + Math.round(down) + 'px');
+    }
+
     /* durable 的 assistant/live-chunk 事件也要兼容（部分版本 / 重放路径） */
     const before = Number(metric(2));
     emitEvent({ type: 'assistant/live-chunk', data: { chunk: { type: 'text-delta' } } });

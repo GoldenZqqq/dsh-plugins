@@ -169,6 +169,59 @@ window.__ModuleLoader__.load({
 					this.firstTokenOfStep = true;
 				},
 
+				/**
+				 * 处理一帧 process-local 的 assistant-stream —— 0.2.x 实时输出的真正来源。
+				 * 必须在 follow 里显式请求 assistantStream: true 才会下发这些帧。
+				 * @param frame - SessionAssistantStreamFrame：start / chunk / end。
+				 * @param now - 收到该帧的时刻。
+				 */
+				handleAssistantFrame(frame, now) {
+					if (!frame || typeof frame.type !== 'string') return;
+					this.connected = true;
+					if (frame.type === 'start') {
+						this.markRequest(now);
+						return;
+					}
+					if (frame.type === 'chunk') {
+						const chunk = frame.chunk;
+						if (chunk && (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' || chunk.type === 'tool-call-delta')) {
+							this.markToken(now);
+						}
+					}
+				},
+
+				/**
+				 * 用 opening snapshot 补齐"打开之前"的信息：
+				 * 模型名来自 durable 的 request/header，一个 step 只发一次，
+				 * 不补的话中途打开面板就一直是 —。
+				 * @param frame - follow 的首帧。
+				 */
+				seedFromSnapshot(frame) {
+					const records = frame && frame.records;
+					if (Array.isArray(records)) {
+						for (let i = records.length - 1; i >= 0; i -= 1) {
+							const ev = records[i] && records[i].event;
+							if (!ev || ev.type !== 'request/header') continue;
+							const config = ev.data && ev.data.header && ev.data.header.config;
+							if (config) {
+								if (config.provider) this.provider = String(config.provider);
+								if (config.model) this.model = String(config.model);
+							}
+							break;
+						}
+					}
+					/* 已经吐出来的部分按 compact stream 的 delta 数补个底，别从 0 开始。 */
+					const opening = frame && frame.assistantStream && frame.assistantStream.activeAttempt;
+					if (opening && Array.isArray(opening.stream)) {
+						let n = 0;
+						for (const member of opening.stream) {
+							const chunk = member && (member.chunk || member);
+							if (chunk && (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta' || chunk.type === 'tool-call-delta')) n += 1;
+						}
+						if (n > this.tokensSession) this.tokensSession = n;
+					}
+				},
+
 				markPathology(kind, ms) {
 					this.pathology = kind;
 					this.pathologyUntil = Math.max(this.pathologyUntil, Date.now() + ms);
@@ -1176,26 +1229,51 @@ window.__ModuleLoader__.load({
 				startedIds.clear();
 			}
 
+			/* 诊断用：流失败只在控制台提示一次，不打扰界面。 */
+			let lastWarnAt = 0;
+			function warnOnce(message, error) {
+				const now = Date.now();
+				if (now - lastWarnAt < 10000) return;
+				lastWarnAt = now;
+				try {
+					console.warn(`[dsh-heartbeat] ${message}`, error);
+				} catch {
+					/* 控制台不可用就算了。 */
+				}
+			}
+
 			function runStream(address, signal) {
+				const key = address.kind === 'session' ? address.sessionId : address.childSessionId;
 				(async () => {
 					try {
-						if (!remote || !remote.session || typeof remote.session.follow !== 'function') return;
-						for await (const frame of remote.session.follow({ address }, signal)) {
+						if (!remote || !remote.session || typeof remote.session.follow !== 'function') {
+							warnOnce('remote.session.follow 不可用，无法测量 token 速度');
+							return;
+						}
+						/*
+						 * assistantStream: true 是关键：0.2.x 的实时 token 走 process-local 的
+						 * assistant-stream 帧，不显式请求就一帧都不下发，心率会一直停在冬息档。
+						 */
+						for await (const frame of remote.session.follow({ address, assistantStream: true }, signal)) {
 							if (disposed || signal.aborted) break;
 							if (!frame) continue;
 							if (frame.type === 'event' && frame.event) {
 								engine.handleEvent(frame.event, performance.now());
+							} else if (frame.type === 'assistant-stream') {
+								engine.handleAssistantFrame(frame.frame, performance.now());
 							} else if (frame.type === 'snapshot') {
 								engine.connected = true;
+								engine.seedFromSnapshot(frame);
 							}
 						}
-					} catch {
-						/* 流被 abort 是正常收尾；真实错误由连接状态兜底。 */
+					} catch (error) {
+						/* 主动 abort 是正常收尾；其它错误记一次，方便排查"不跳"的问题。 */
+						if (!signal.aborted) warnOnce('follow 流中断', error);
+					} finally {
+						startedIds.delete(key);
+						streamAborts.delete(key);
+						if (!disposed && !signal.aborted) setTimeout(syncStreams, 1500);
 					}
-					const key = address.kind === 'session' ? address.sessionId : address.childSessionId;
-					startedIds.delete(key);
-					streamAborts.delete(key);
-					if (!disposed && !signal.aborted) setTimeout(syncStreams, 1500);
 				})();
 			}
 
